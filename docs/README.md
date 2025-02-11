@@ -28,4 +28,4 @@
 
 ## Roadmap
 
-`Mention de choses pas tout à fait fonctionnelles ou améliorables. Idées de nouvelles fonctionnalités ou améliorations souhaitables.`
+`Mention de choses pas tout à fait fonctionnelles ou améliorables. Idées de nouvelles fonctionnalités et liste d'améliorations souhaitables.`

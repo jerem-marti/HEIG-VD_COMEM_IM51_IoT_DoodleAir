@@ -1,5 +1,7 @@
 # Template Projet Arduino
 
+![Description de l'image](/docs/assets/photo-de-mon-projet.png)
+
 Réalisé par `________________`
 Option Arduino 202`X` – COMEM+
 
