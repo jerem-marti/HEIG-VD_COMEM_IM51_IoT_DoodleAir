@@ -2,7 +2,7 @@
 
 ## Recherche et conception
 
-`[…]`
+`Quelques notes sur la conception, des projets de référence, mon intention, etc.`
 
 ![Description de l'image](/docs/assets/croquis-de-recherche.png)
 
@@ -25,3 +25,7 @@
 ## Programme
 
 `Quelques notes sur des le code, des particularités, sa structure, l'usage de libs particulières, etc.`
+
+## Roadmap
+
+`Mention de choses pas tout à fait fonctionnelles ou améliorables. Idées de nouvelles fonctionnalités ou améliorations souhaitables.`
