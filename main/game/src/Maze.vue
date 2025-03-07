@@ -1,11 +1,12 @@
 <script setup>
 import * as THREE from 'three';
 import { onMounted, ref } from 'vue';
-import { getRoll, getPitch } from './movement'; // 🔹 Import du module de mouvements
+import { getRoll, getPitch, getSensitivity } from './movement'; // 🔹 Import du module de mouvements
 
 let scene, camera, renderer, maze, ball;
 
 const ballRadius = 0.2; // Rayon de la bille
+const holeRadius = 0.3; // Rayon des trous
 let ballVelocity = new THREE.Vector3(0, 0, 0); // Vitesse de la bille
 const maxSpeed = 0.5; // 🔹 Vitesse maximale autorisée pour éviter une accélération incontrôlable
 const gravity = 0.002; // Gravité de la bille sur le labyrinthe
@@ -27,9 +28,25 @@ onMounted(() => {
     renderer.setPixelRatio(window.devicePixelRatio); // Rend le canvas responsive
     canvasRef.value.appendChild(renderer.domElement);
 
+    // Charger la texture du bois pour le labyrinthe
+    const textureLoader = new THREE.TextureLoader();
+    const woodTexture = textureLoader.load(
+        "/textures/oak_veneer_01.jpg",
+        () => console.log("✅ Texture chargée avec succès !"),
+        undefined,
+        (error) => console.error("❌ Erreur de chargement de la texture :", error)
+    );
+    woodTexture.wrapS = THREE.RepeatWrapping;
+    woodTexture.wrapT = THREE.RepeatWrapping;
+    woodTexture.repeat.set(2, 2);
+
     // Labyrinthe (plateforme)
     const mazeGeometry = new THREE.BoxGeometry(5, 0.2, 5);
-    const mazeMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+    const mazeMaterial = new THREE.MeshStandardMaterial({ 
+        map: woodTexture,
+        roughness: 0.6,  // Ajuste la rugosité pour un effet plus réaliste
+        metalness: 0.1   // Donne un léger effet de brillance
+    });
     maze = new THREE.Mesh(mazeGeometry, mazeMaterial);
     scene.add(maze);
 
@@ -41,7 +58,7 @@ onMounted(() => {
     ];
 
     holePositions.forEach(pos => {
-        const holeGeometry = new THREE.CylinderGeometry(0.3, 0.3, 0.2001, 32);
+        const holeGeometry = new THREE.CylinderGeometry(holeRadius, holeRadius, 0.2001, 32);
         const holeMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
         let hole = new THREE.Mesh(holeGeometry, holeMaterial);
         hole.position.set(pos.x, 0, pos.z); // Positionner sous la plateforme
@@ -51,15 +68,19 @@ onMounted(() => {
 
     // 🔹 Ajouter les murs comme enfants du labyrinthe
     const wallPositions = [
-        { x: -2.5, z: 0, width: 0.2, height: 5 }, // Mur gauche
-        { x: 2.5, z: 0, width: 0.2, height: 5 },  // Mur droit
-        { x: 0, z: -2.5, width: 5, height: 0.2 }, // Mur bas
-        { x: 0, z: 2.5, width: 5, height: 0.2 },  // Mur haut
+        { x: -2.5, z: 0, width: 0.2, height: 5.2 }, // Mur gauche
+        { x: 2.5, z: 0, width: 0.2, height: 5.2 },  // Mur droit
+        { x: 0, z: -2.5, width: 5.2, height: 0.2 }, // Mur bas
+        { x: 0, z: 2.5, width: 5.2, height: 0.2 },  // Mur haut
     ];
 
     wallPositions.forEach(pos => {
         const wallGeometry = new THREE.BoxGeometry(pos.width, 0.5, pos.height);
-        const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x555555 });
+        const wallMaterial = new THREE.MeshStandardMaterial({ 
+            map: woodTexture,
+            roughness: 0.6,
+            metalness: 0.1
+        });
         let wall = new THREE.Mesh(wallGeometry, wallMaterial);
         wall.position.set(pos.x, 0.3, pos.z);
         maze.add(wall); // 🔹 Ajouter le mur au labyrinthe (et non à la scène)
@@ -73,10 +94,20 @@ onMounted(() => {
     ball.position.set(0, 0.3, 0); // Toujours au bon niveau du labyrinthe
     maze.add(ball); // 🔹 Ajout de la bille au labyrinthe pour qu'elle suive sa rotation
 
-    // Lumière
-    const light = new THREE.DirectionalLight(0xffffff, 1);
-    light.position.set(5, 5, 5);
-    scene.add(light);
+    // 🔹 Lumière ambiante pour éclairer toute la scène de manière uniforme
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.2); // Augmente l'intensité
+    scene.add(ambientLight);
+
+    // 🔹 Lumière directionnelle pour créer du relief et des ombres
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(3, 5, 2);
+    directionalLight.castShadow = true; // Active les ombres pour un meilleur rendu
+    scene.add(directionalLight);
+
+    // 🔹 Ajout d'une lumière ponctuelle au-dessus du plateau
+    const pointLight = new THREE.PointLight(0xffffff, 1, 10);
+    pointLight.position.set(0, 5, 0);
+    scene.add(pointLight);
 
     animate();
 });
@@ -133,41 +164,65 @@ function animate() {
             const previousX = ball.position.x - ballVelocity.x;
             const previousZ = ball.position.z - ballVelocity.z;
 
-            if (previousX < wallMinX) {
-                ball.position.x = wallMinX - ballRadius;
-            } else if (previousX > wallMaxX) {
-                ball.position.x = wallMaxX + ballRadius;
+            let collisionOnX = false;
+            let collisionOnZ = false;
+
+            if (previousX < wallMinX || previousX > wallMaxX) {
+                ball.position.x = previousX < wallMinX ? wallMinX - ballRadius : wallMaxX + ballRadius;
+                ballVelocity.x *= -0.4; // 🔹 Appliquer un rebond uniquement sur X
+                collisionOnX = true;
             }
 
-            if (previousZ < wallMinZ) {
-                ball.position.z = wallMinZ - ballRadius;
-            } else if (previousZ > wallMaxZ) {
-                ball.position.z = wallMaxZ + ballRadius;
+            if (previousZ < wallMinZ || previousZ > wallMaxZ) {
+                ball.position.z = previousZ < wallMinZ ? wallMinZ - ballRadius : wallMaxZ + ballRadius;
+                ballVelocity.z *= -0.4; // 🔹 Appliquer un rebond uniquement sur Z
+                collisionOnZ = true;
             }
 
-            // 🔹 Appliquer un rebond réaliste
-            ballVelocity.x *= -0.4;
-            ballVelocity.z *= -0.4;
+            if (collisionOnX && collisionOnZ) {
+                console.log("💥 Coin touché !");
+            }
         }
     });
 
+    let isInHole = false;
     // 🔹 Vérification si la bille tombe dans un trou
     holes.forEach(hole => {
-        if (hole && hole.position && ball.position.distanceTo(new THREE.Vector3(hole.position.x, ball.position.y, hole.position.z)) < ballRadius) {
+        if (hole && hole.position && ball.position.distanceTo(new THREE.Vector3(hole.position.x, ball.position.y, hole.position.z)) < holeRadius) {
             if (shieldActive) {
                 console.log("🔥 Bouclier a empêché la chute !");
                 shieldActive = false;
                 ball.position.set(ball.position.x, 0.3, ball.position.z); // Stoppe la chute
             } else {
                 console.log("🕳️ Bille en train de tomber dans un trou !");
-                ballVelocity.set(0, 0, 0); // Supprimer la vitesse pour éviter une fuite latérale
-                ball.position.y -= 0.02; // 🔹 Fait descendre la bille progressivement
+                isInHole = true;
+
+                const deltaX = hole.position.x - ball.position.x;
+                const deltaZ = hole.position.z - ball.position.z;
+                const distanceToHole = Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
+                // calcule de la distance du centre de la bille au bord du trou
+                const distanceToEdge = holeRadius - distanceToHole;
+                // calcule de la force de gravité horizontale en fonction du centre de masse de la bille
+                const horizontaleGravityForce = new THREE.Vector3(deltaX, 0, deltaZ).normalize().multiplyScalar(gravity);
+                // calcule de la force de frottement en fonction de la distance au bord du trou
+                const frictionForce = ballVelocity.clone().normalize().multiplyScalar(distanceToEdge * 0.01);
+                // calcule de la force gravité verticale en fonction de la distance au bord du trou
+                const verticalGravityForce = new THREE.Vector3(0, -gravity*150, 0).multiplyScalar(distanceToEdge);
+                // calcule de la force totale
+                const dropForce = horizontaleGravityForce.add(frictionForce).add(verticalGravityForce);
+                if (ball.position.y < 0.7 * ballRadius) {
+                    ballVelocity.multiplyScalar(0.5);
+                }
+                ballVelocity.add(dropForce); // Ajoute la force totale à la vitesse de la bille
             }
         }
     });
+    if (!isInHole) {
+        ball.position.y = 0.3; // Garde la bille au bon niveau
+    }
 
     // 🔹 Réinitialisation de la bille si elle tombe totalement sous le plateau
-    if (ball.position.y < -1) {
+    if (ball.position.y < 2 * -ballRadius) { 
         console.log("❌ Bille tombée dans un trou, réinitialisation !");
         ball.position.set(0, 0.3, 0); // Réinitialisation
         ballVelocity.set(0, 0, 0);
