@@ -9,7 +9,7 @@ ws.onclose = () => console.warn("⚠️ WebSocket déconnecté !");
 
 ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
-    console.log("📨 Données reçues dans Vue.js :", data);
+    //console.log("📨 Données reçues dans Vue.js :", data);
 
     if ("roll" in data && "pitch" in data) {
         // Événement pour la mise à jour du tilt avec inversion (voir étape 2)

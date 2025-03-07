@@ -19,7 +19,7 @@ function mapSensitivity(potValue) {
 // 🔹 Écoute des événements WebSocket pour le potentiomètre
 window.addEventListener("update-speed", (event) => {
     sensitivity = mapSensitivity(event.detail); // Met à jour la sensibilité
-    console.log(`🎚️ Sensibilité ajustée : ${sensitivity.toFixed(2)}`);
+    //console.log(`🎚️ Sensibilité ajustée : ${sensitivity.toFixed(2)}`);
 });
 
 // 🔹 Écoute des événements WebSocket pour l'inclinaison
@@ -31,7 +31,7 @@ window.addEventListener("update-tilt", (event) => {
     roll = alpha * (rawRoll * sensitivity) + (1 - alpha) * roll;
     pitch = alpha * (rawPitch * sensitivity) + (1 - alpha) * pitch;
 
-    console.log("🎮 Valeurs lissées et ajustées :", { roll, pitch });
+    //console.log("🎮 Valeurs lissées et ajustées :", { roll, pitch });
 
     // 🔹 Envoyer les nouvelles valeurs lissées et ajustées
     window.dispatchEvent(new CustomEvent("smooth-tilt", { detail: { roll, pitch } }));
