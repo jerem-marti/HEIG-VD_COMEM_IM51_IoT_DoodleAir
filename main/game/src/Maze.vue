@@ -3,13 +3,13 @@ import * as THREE from 'three';
 import { onMounted, ref } from 'vue';
 import { getRoll, getPitch, getSensitivity } from './movement'; // 🔹 Import du module de mouvements
 
-let scene, camera, renderer, maze, ball;
+let scene, camera, renderer, maze, ball, background;
 
 const ballRadius = 40; // Rayon de la bille
 const holeRadius = 60; // Rayon des trous
 let ballVelocity = new THREE.Vector3(0, 0, 0); // Vitesse de la bille
-const maxSpeed = 0.5; // 🔹 Vitesse maximale autorisée pour éviter une accélération incontrôlable
-const gravity = 0.002; // Gravité de la bille sur le labyrinthe
+const maxSpeed = 2; // 🔹 Vitesse maximale autorisée pour éviter une accélération incontrôlable
+const gravity = 0.02; // Gravité de la bille sur le labyrinthe
 const canvasRef = ref(null); // Permet d'attacher le canvas Vue
 
 const MAZE_SIZE = { width: 2000, height: 2000 }; // Taille du labyrinthe
@@ -19,6 +19,7 @@ let start = { x: 0, y: 0 };
 let end = { x: 0, y: 0 };
 let walls = [];
 let holes = [];
+let pathPoints = [];
 
 // 📌 Variables du jeu
 const gameState = ref("waiting"); // waiting | playing | won | lost
@@ -74,12 +75,45 @@ async function loadMaze() {
     maze = new THREE.Mesh(mazeGeometry, mazeMaterial);
     scene.add(maze);
 
+    // 📌 Création du chemin à suivre
+    if (mazeData.path) {
+        pathPoints = mazeData.path.map(p => new THREE.Vector3(
+            (p.x - MAZE_SIZE.width / 2) * SCALE, 
+            2.1,  // Légèrement au-dessus du plateau pour bien voir la ligne
+            (p.y - MAZE_SIZE.height / 2) * SCALE
+        ));
+    }
+
+    if (pathPoints.length > 1) {
+        const pathGeometry = new THREE.BufferGeometry().setFromPoints(pathPoints);
+        const pathMaterial = new THREE.LineBasicMaterial({ color: 0x0000AA, linewidth: 2 });
+
+        const pathLine = new THREE.Line(pathGeometry, pathMaterial);
+        maze.add(pathLine);
+    }
+
+    // 📌 Ajout du carré bleu au sol pour le départ
+    const startMarkerGeometry = new THREE.PlaneGeometry(100 * SCALE, 100 * SCALE);
+    const startMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0x0000AA, side: THREE.DoubleSide });
+    const startMarker = new THREE.Mesh(startMarkerGeometry, startMarkerMaterial);
+    startMarker.position.set((start.x - MAZE_SIZE.width / 2) * SCALE, 2.1, (start.y - MAZE_SIZE.height / 2) * SCALE);
+    startMarker.rotation.x = -Math.PI / 2;
+    maze.add(startMarker);
+
+    // 📌 Ajout du carré bleu au sol pour l'arrivée
+    const endMarkerGeometry = new THREE.PlaneGeometry(100 * SCALE, 100 * SCALE);
+    const endMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0x0000AA, side: THREE.DoubleSide });
+    const endMarker = new THREE.Mesh(endMarkerGeometry, endMarkerMaterial);
+    endMarker.position.set((end.x - MAZE_SIZE.width / 2) * SCALE, 2.1, (end.y - MAZE_SIZE.height / 2) * SCALE);
+    endMarker.rotation.x = -Math.PI / 2;
+    maze.add(endMarker);
+
     // 📌 Ajout des trous
     mazeData.holes.forEach(pos => {
-        const holeGeometry = new THREE.CylinderGeometry(holeRadius * SCALE, holeRadius * SCALE, 4.1, 32);
+        const holeGeometry = new THREE.CylinderGeometry(holeRadius * SCALE, holeRadius * SCALE, 4, 32);
         const holeMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
         let hole = new THREE.Mesh(holeGeometry, holeMaterial);
-        hole.position.set((pos.x - MAZE_SIZE.width / 2) * SCALE, 0, (pos.y - MAZE_SIZE.height / 2) * SCALE);
+        hole.position.set((pos.x - MAZE_SIZE.width / 2) * SCALE, 0.1, (pos.y - MAZE_SIZE.height / 2) * SCALE);
         maze.add(hole);
         holes.push(hole);
     });
@@ -119,6 +153,25 @@ async function loadMaze() {
     ball = new THREE.Mesh(ballGeometry, ballMaterial);
     ball.position.set((start.x - MAZE_SIZE.width / 2) * SCALE, 4, (start.y - MAZE_SIZE.height / 2) * SCALE);
     maze.add(ball);
+
+    // 📌 Chargement de la texture de fond
+    const backgroundTexture = new THREE.TextureLoader().load('/textures/space.jpeg', () => {
+        console.log("✅ Texture d'arrière-plan chargée !");
+    });
+
+    // 📌 Création du plan de fond
+    const backgroundGeometry = new THREE.PlaneGeometry(2500, 2500);
+    const backgroundMaterial = new THREE.MeshBasicMaterial({ 
+        map: backgroundTexture,
+        side: THREE.DoubleSide
+    });
+    background = new THREE.Mesh(backgroundGeometry, backgroundMaterial);
+
+    // 📌 Positionner l'arrière-plan loin derrière le labyrinthe
+    background.position.set(0, -700, -1500);
+    background.rotation.x = -Math.PI / 2; // Orientation parallèle au sol
+
+    scene.add(background);
 
     // 🔹 Lumière ambiante : éclaire toute la scène pour éviter les zones noires
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -175,6 +228,11 @@ function animate() {
     maze.rotation.x = THREE.MathUtils.degToRad(getPitch());
     maze.rotation.z = THREE.MathUtils.degToRad(getRoll());
 
+    // 📌 Effet parallaxe : Déplacement de l'arrière-plan en fonction des mouvements du labyrinthe
+    const parallaxFactor = 1; // Ajuster pour plus ou moins d'effet
+    background.position.x = -getRoll() * parallaxFactor;
+    background.position.z = getPitch() * parallaxFactor;
+
     if(gameState.value === "playing") {
         // 🔹 Simulation de la gravité
         let gravityEffect = new THREE.Vector3(-getRoll() * gravity, 0, getPitch() * gravity);
@@ -192,34 +250,28 @@ function animate() {
             const wallMinZ = wall.position.z - (wall.geometry.parameters.depth / 2);
             const wallMaxZ = wall.position.z + (wall.geometry.parameters.depth / 2);
 
-            if (
-                ball.position.x - ballRadius * SCALE < wallMaxX && ball.position.x + ballRadius * SCALE > wallMinX &&
-                ball.position.z - ballRadius * SCALE < wallMaxZ && ball.position.z + ballRadius * SCALE > wallMinZ
-            ) {
-                console.log("🚧 Collision avec un mur !");
+            let closestX = Math.max(wallMinX, Math.min(ball.position.x, wallMaxX));
+            let closestZ = Math.max(wallMinZ, Math.min(ball.position.z, wallMaxZ));
 
-                // 🔹 Correction de la position en fonction de la direction du mouvement
-                const previousX = ball.position.x - ballVelocity.x;
-                const previousZ = ball.position.z - ballVelocity.z;
+            let distanceX = ball.position.x - closestX;
+            let distanceZ = ball.position.z - closestZ;
+            let distanceSquared = (distanceX * distanceX) + (distanceZ * distanceZ);
 
-                let collisionOnX = false;
-                let collisionOnZ = false;
+            if (distanceSquared < (ballRadius * SCALE) * (ballRadius * SCALE)) {
+                //console.log("🚧 Collision avec un mur détectée !");
+                
+                let collisionNormal = new THREE.Vector3(distanceX, 0, distanceZ).normalize();
 
-                if (previousX < wallMinX || previousX > wallMaxX) {
-                    ball.position.x = previousX < wallMinX ? wallMinX - ballRadius * SCALE : wallMaxX + ballRadius * SCALE;
-                    ballVelocity.x *= -0.4; // 🔹 Appliquer un rebond uniquement sur X
-                    collisionOnX = true;
-                }
+                // Correction de la position
+                ball.position.x += collisionNormal.x * (ballRadius * SCALE - Math.sqrt(distanceSquared));
+                ball.position.z += collisionNormal.z * (ballRadius * SCALE - Math.sqrt(distanceSquared));
 
-                if (previousZ < wallMinZ || previousZ > wallMaxZ) {
-                    ball.position.z = previousZ < wallMinZ ? wallMinZ - ballRadius * SCALE : wallMaxZ + ballRadius * SCALE;
-                    ballVelocity.z *= -0.4; // 🔹 Appliquer un rebond uniquement sur Z
-                    collisionOnZ = true;
-                }
+                // Rebond plus naturel en inversant la vitesse selon la normale
+                let velocityDotNormal = ballVelocity.dot(collisionNormal);
+                ballVelocity.sub(collisionNormal.multiplyScalar(1.6 * velocityDotNormal));
 
-                if (collisionOnX && collisionOnZ) {
-                    console.log("💥 Coin touché !");
-                }
+                // Appliquer un amortissement après le rebond
+                // ballVelocity.multiplyScalar(0.8);
             }
         });
 
@@ -364,8 +416,6 @@ function startGame() {
     clearInterval(boostInterval); // 🔹 Réinitialise le boost
     clearInterval(shieldInterval); // 🔹 Réinitialise le bouclier
     bonuses.value = { shield: 1, boost: 2 }; // 🔹 Réinitialise les bonus
-    console.log(bonuses.value.shield);
-    console.log(bonuses.value.boost);
 
     // 🔹 Met à jour le temps toutes les 100ms
     if (gameInterval) clearInterval(gameInterval);
@@ -462,7 +512,7 @@ function updateBestScore() {
     position: absolute;
     top: 0;
     width: 100dvw;
-    background: #fdf5e68b; /* Blanc cassé */
+    background: rgba(253, 246, 231, 0.3); /* Blanc cassé */
     padding: 1rem 0;
     text-align: center;
     font-size: 1.2rem;
@@ -472,7 +522,7 @@ function updateBestScore() {
 }
 
 .best-score {
-    background: gold;
+    background: rgba(255, 217, 0, 0.9);
     padding: 0.5rem;
     margin: 0.5rem;
     border-radius: 0.5rem;
@@ -484,7 +534,7 @@ function updateBestScore() {
     position: absolute;
     bottom: 0;
     width: 100dvw;
-    background: #fdf5e68b; /* Blanc cassé */
+    background: rgba(253, 246, 231, 0.3); /* Blanc cassé */
     padding: 1rem 0;
     text-align: center;
     font-size: 1.2rem;
@@ -494,6 +544,8 @@ function updateBestScore() {
 
 .username-input {
     width: 80%;
+    background: rgba(253, 246, 231, 0.9);
+    color: black;
     padding: 0.5rem;
     margin: 0.5rem;
     margin-right: 0;
@@ -503,7 +555,7 @@ function updateBestScore() {
 }
 
 .play-button {
-    background: #4CAF50;
+    background: rgba(76, 175, 79, 0.9);
     color: white;
     font-size: 1.2rem;
     padding: 0.5rem 1rem;
