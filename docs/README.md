@@ -77,9 +77,6 @@ Le projet repose sur un ESP32 qui communique avec un capteur IMU (MPU6050) via I
 | 2   | Breadboard     | 1 | Plaque de prototypage                  |     |
 
 ## Programme
-
-`Quelques notes sur des le code, des particularités, sa structure, l'usage de libs particulières, etc.`
-
 Le projet est structuré en deux grandes parties :
 
 - Firmware (ESP32 - Arduino)
