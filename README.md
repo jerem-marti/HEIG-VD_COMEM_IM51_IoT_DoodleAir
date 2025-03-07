@@ -22,7 +22,7 @@ Retrouvez la documentation détaillée dans le dossier [docs](docs/).
 
 ## 🎥 Le projet en image
 ### Vidéo
-Une vidéos de présentation du projet ce trouve [ici](./docs/assets/video-maze-tilt.mp4)
+Une vidéos de présentation du projet ce trouve [ici](./docs/assets/video_gh-maze_tilt.mp4)
 
 ### Photos
 ![Controller / Manette de jeu](./docs/assets/photos/20250307_113721.jpg)
