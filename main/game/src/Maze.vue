@@ -392,11 +392,15 @@ function activateBoost() {
 // 🔹 Gestion des boutons pour activer les bonus
 window.addEventListener("button-action", (event) => {
     if (event.detail.button === "interior" && event.detail.state === "pressed") {
-        activateShield();
+        if(gameState.value === "playing")
+            activateShield();
     }
 
     if (event.detail.button === "exterior" && event.detail.state === "pressed") {
-        activateBoost();
+        if(gameState.value === "playing")
+            activateBoost();
+        else if(gameState.value === "waiting")
+            startGame();
     }
 });
 
